@@ -20,6 +20,7 @@ import com.amplitude.android.utilities.DefaultEventUtils
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import java.lang.ref.WeakReference
+import com.amplitude.android.plugins.SessionReplayPlugin
 
 class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var instances: Map<String, Amplitude> = mutableMapOf()
@@ -63,6 +64,8 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         if (call.method == "init") {
             val configuration = getConfiguration(call)
             val amplitude = Amplitude(configuration)
+            amplitude.add(SessionReplayPlugin(sampleRate = 0.2))
+
             instances += mapOf(configuration.instanceName to amplitude)
 
             // Set library
