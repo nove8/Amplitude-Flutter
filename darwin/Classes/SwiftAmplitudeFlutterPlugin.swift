@@ -6,12 +6,10 @@ import FlutterMacOS
 #endif
 
 import AmplitudeSwift
-#if canImport(AmplitudeSwiftSessionReplayPlugin)
-import AmplitudeSwiftSessionReplayPlugin
-#endif
 
 @objc public class SwiftAmplitudeFlutterPlugin: NSObject, FlutterPlugin {
     var instances: [String: Amplitude] = [:]
+    public static var plugin: UniversalPlugin?
     static let methodChannelName = "amplitude_flutter"
 
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -35,9 +33,9 @@ import AmplitudeSwiftSessionReplayPlugin
             var amplitude: Amplitude?
             do {
                 amplitude = Amplitude(configuration: try getConfiguration(args: configArgs))
-                #if canImport(AmplitudeSwiftSessionReplayPlugin)
-                amplitude!.add(plugin: AmplitudeSwiftSessionReplayPlugin(sampleRate: 0.2))
-                #endif
+                if (Self.plugin != nil) {
+                    amplitude?.add(plugin: Self.plugin!)
+                }
                 instances[amplitude!.configuration.instanceName] = amplitude
             } catch {
                 print("Initialization failed.")
