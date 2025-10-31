@@ -64,7 +64,7 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         if (call.method == "init") {
             val configuration = getConfiguration(call)
             val amplitude = Amplitude(configuration)
-            amplitude.add(SessionReplayPlugin(sampleRate = 0.2))
+            amplitude.add(SessionReplayPlugin(sampleRate = 0.05))
 
             instances += mapOf(configuration.instanceName to amplitude)
 
