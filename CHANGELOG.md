@@ -1,3 +1,17 @@
+## [4.3.11](https://github.com/amplitude/Amplitude-Flutter/compare/v4.3.10...v4.3.11) (2026-02-24)
+
+
+### Bug Fixes
+
+* bump Amplitude-Kotlin to 1.25.3 and Amplitude-Swift to 1.17.3 ([#288](https://github.com/amplitude/Amplitude-Flutter/issues/288)) ([e9c6ca4](https://github.com/amplitude/Amplitude-Flutter/commit/e9c6ca462982da920aaec57e66942e415cd877d1))
+
+## [4.3.10](https://github.com/amplitude/Amplitude-Flutter/compare/v4.3.9...v4.3.10) (2026-01-16)
+
+
+### Bug Fixes
+
+* update Amplitude-Swift to 1.16.5 iOS missing installed/app opened events ([#287](https://github.com/amplitude/Amplitude-Flutter/issues/287)) ([5857dd7](https://github.com/amplitude/Amplitude-Flutter/commit/5857dd749573371d6bd913100f73c8f94234ac83))
+
 ## [4.3.9](https://github.com/amplitude/Amplitude-Flutter/compare/v4.3.8...v4.3.9) (2025-10-14)
 
 
