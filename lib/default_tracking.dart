@@ -6,6 +6,7 @@
 /// * [iOS](https://www.docs.developers.amplitude.com/data/sdks/ios-swift/#tracking-default-events)
 /// * [Android](https://www.docs.developers.amplitude.com/data/sdks/android-kotlin/#tracking-default-events)
 /// * [Web](https://www.docs.developers.amplitude.com/data/sdks/browser-2/#tracking-default-events)
+@Deprecated('Use AutocaptureOptions instead. See Configuration.autocapture.')
 class DefaultTrackingOptions {
   final bool sessions;
 
@@ -23,10 +24,10 @@ class DefaultTrackingOptions {
   /// Web specific
   final bool pageViews;
 
-  /// Web specific
+  /// Web specific not actually supported in Flutter
   final bool formInteractions;
 
-  /// Web specific
+  /// Web specific not actually supported in Flutter
   final bool fileDownloads;
 
   const DefaultTrackingOptions({
@@ -36,8 +37,11 @@ class DefaultTrackingOptions {
     this.deepLinks = false,
     this.attribution = true,
     this.pageViews = true,
-    this.formInteractions = true,
-    this.fileDownloads = true,
+    // Web DOM-based capture is opt-in (see AutocaptureOptions). Defaulting these
+    // to false keeps the defaultTracking -> autocapture bridge from enabling web
+    // form/file capture for callers that only set mobile fields.
+    this.formInteractions = false,
+    this.fileDownloads = false,
   });
 
   /// Enable all default tracking options.

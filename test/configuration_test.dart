@@ -1,5 +1,12 @@
+// This file exercises both the new `autocapture` API and the deprecated
+// `defaultTracking` API to verify the backward-compatibility bridge in
+// Configuration._resolveAutocapture.
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:amplitude_flutter/autocapture/attribution.dart';
 import 'package:amplitude_flutter/autocapture/autocapture.dart';
+import 'package:amplitude_flutter/autocapture/page_views.dart';
 import 'package:amplitude_flutter/constants.dart';
 import 'package:amplitude_flutter/configuration.dart';
 import 'package:amplitude_flutter/tracking_options.dart';
@@ -79,6 +86,144 @@ void main() {
       expect(map['transport'], 'fetch');
       expect(map['fetchRemoteConfig'], false);
       expect(map.containsKey('autocapture'), true);
+    });
+
+    test('serializes autocapture mobile options', () {
+      final config = Configuration(
+        apiKey: 'test_api_key',
+        autocapture: const AutocaptureOptions(
+          appLifecycles: true,
+          deepLinks: true,
+        ),
+      );
+
+      final autocapture = config.toMap()['autocapture'] as Map<String, dynamic>;
+
+      expect(autocapture['sessions'], true);
+      expect(autocapture['appLifecycles'], true);
+      expect(autocapture['deepLinks'], true);
+    });
+
+    group('autocapture derivation from defaultTracking', () {
+      test('explicit autocapture wins over defaultTracking', () {
+        final config = Configuration(
+          apiKey: 'k',
+          autocapture: const AutocaptureOptions(appLifecycles: true),
+          defaultTracking: const DefaultTrackingOptions(appLifecycles: false),
+        );
+
+        final ac = config.autocapture as AutocaptureOptions;
+        expect(ac.appLifecycles, true);
+
+        final serialized = config.toMap()['autocapture'] as Map<String, dynamic>;
+        expect(serialized['appLifecycles'], true);
+      });
+
+      test('autocapture derived from defaultTracking when not passed (mobile fields)', () {
+        final config = Configuration(
+          apiKey: 'k',
+          defaultTracking: const DefaultTrackingOptions(
+            appLifecycles: true,
+            deepLinks: true,
+          ),
+        );
+
+        final ac = config.autocapture as AutocaptureOptions;
+        expect(ac.sessions, true,
+            reason: 'DefaultTrackingOptions.sessions default is true');
+        expect(ac.appLifecycles, true);
+        expect(ac.deepLinks, true);
+
+        final serialized = config.toMap()['autocapture'] as Map<String, dynamic>;
+        expect(serialized['appLifecycles'], true);
+        expect(serialized['deepLinks'], true);
+      });
+
+      test('autocapture derived from defaultTracking when not passed (web fields)', () {
+        final config = Configuration(
+          apiKey: 'k',
+          defaultTracking: const DefaultTrackingOptions(
+            attribution: false,
+            pageViews: false,
+          ),
+        );
+
+        final ac = config.autocapture as AutocaptureOptions;
+        expect(Attribution.toMapOrBool(ac.attribution), false,
+            reason: 'attribution=false on DTO should disable on derived AutocaptureOptions');
+        expect(PageViews.toMapOrBool(ac.pageViews), false,
+            reason: 'pageViews=false on DTO should disable on derived AutocaptureOptions');
+      });
+
+      test('autocapture derived from defaultTracking honors formInteractions/fileDownloads', () {
+        final config = Configuration(
+          apiKey: 'k',
+          defaultTracking: const DefaultTrackingOptions(
+            formInteractions: false,
+            fileDownloads: false,
+          ),
+        );
+
+        final ac = config.autocapture as AutocaptureOptions;
+        expect(ac.formInteractions, false);
+        expect(ac.fileDownloads, false);
+
+        final serialized = config.toMap()['autocapture'] as Map<String, dynamic>;
+        expect(serialized['formInteractions'], false);
+        expect(serialized['fileDownloads'], false);
+      });
+
+      test('defaultTracking with only mobile fields does not enable web capture',
+          () {
+        final config = Configuration(
+          apiKey: 'k',
+          defaultTracking: const DefaultTrackingOptions(appLifecycles: true),
+        );
+
+        final ac = config.autocapture as AutocaptureOptions;
+        expect(ac.appLifecycles, true);
+        // Web DOM-based capture stays opt-in: DefaultTrackingOptions now defaults
+        // formInteractions/fileDownloads to false, so the bridge doesn't enable
+        // them for callers that only set mobile fields.
+        expect(ac.formInteractions, false);
+        expect(ac.fileDownloads, false);
+      });
+
+      test('defaults: no autocapture, no defaultTracking → minimal autocapture', () {
+        final config = Configuration(apiKey: 'k');
+
+        final ac = config.autocapture as AutocaptureOptions;
+        expect(ac.sessions, true);
+        expect(ac.appLifecycles, false);
+        expect(ac.deepLinks, false);
+        expect(ac.attribution, isA<AttributionOptions>());
+        // Web capture is opt-in: with neither field passed the default
+        // AutocaptureOptions is used, whose web options are all off.
+        expect(ac.pageViews, isA<PageViewsDisabled>());
+        expect(ac.formInteractions, false);
+        expect(ac.fileDownloads, false);
+        expect(ac.pageUrlEnrichment, false);
+      });
+
+      test('AutocaptureDisabled is preserved (not overridden by defaultTracking)', () {
+        final config = Configuration(
+          apiKey: 'k',
+          autocapture: const AutocaptureDisabled(),
+          defaultTracking: const DefaultTrackingOptions(appLifecycles: true),
+        );
+
+        expect(config.autocapture, isA<AutocaptureDisabled>());
+      });
+
+      test('AutocaptureEnabled is preserved (not overridden by defaultTracking)', () {
+        final config = Configuration(
+          apiKey: 'k',
+          autocapture: const AutocaptureEnabled(),
+          defaultTracking: const DefaultTrackingOptions(appLifecycles: false),
+        );
+
+        expect(config.autocapture, isA<AutocaptureEnabled>());
+      });
     });
 
     test('custom values should be set correctly', () {

@@ -1,3 +1,62 @@
+## [4.7.1](https://github.com/amplitude/Amplitude-Flutter/compare/v4.7.0...v4.7.1) (2026-08-11)
+
+
+### Bug Fixes
+
+* remove autocapture documentation from README ([#315](https://github.com/amplitude/Amplitude-Flutter/issues/315)) ([2a2ab64](https://github.com/amplitude/Amplitude-Flutter/commit/2a2ab64dd6d0f97bd6e957db3b62fa541a3a2b41))
+
+# [4.7.0](https://github.com/amplitude/Amplitude-Flutter/compare/v4.6.2...v4.7.0) (2026-08-11)
+
+
+### Features
+
+* **autocapture:** web click/form/download capture, page-URL enrichment, and mobile screen views ([#309](https://github.com/amplitude/Amplitude-Flutter/issues/309)) ([9fabca2](https://github.com/amplitude/Amplitude-Flutter/commit/9fabca2582593f4b905c125811c12fae253a40f4))
+
+## [4.6.2](https://github.com/amplitude/Amplitude-Flutter/compare/v4.6.1...v4.6.2) (2026-07-24)
+
+
+### Bug Fixes
+
+* **android:** return device ID only after native SDK build completes ([#310](https://github.com/amplitude/Amplitude-Flutter/issues/310)) ([cf5d15f](https://github.com/amplitude/Amplitude-Flutter/commit/cf5d15f1720d38e2ea544fc64d32ef714f356762))
+
+## [4.6.1](https://github.com/amplitude/Amplitude-Flutter/compare/v4.6.0...v4.6.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* **android:** bump analytics-android pin to 1.29.x for session-replay compat ([#308](https://github.com/amplitude/Amplitude-Flutter/issues/308)) ([bb72fc9](https://github.com/amplitude/Amplitude-Flutter/commit/bb72fc9b63cc7f845a373d74d035af568f9c6acd)), closes [#307](https://github.com/amplitude/Amplitude-Flutter/issues/307)
+
+# [4.6.0](https://github.com/amplitude/Amplitude-Flutter/compare/v4.5.0...v4.6.0) (2026-06-16)
+
+
+### Bug Fixes
+
+* correct Flutter min version in pubspec to match Dart SDK ([#302](https://github.com/amplitude/Amplitude-Flutter/issues/302)) ([40d197b](https://github.com/amplitude/Amplitude-Flutter/commit/40d197b353782e1a7b881da2317f9d71abcc1b2f))
+
+
+### Features
+
+* **config:** prefer autocapture over defaultTracking for mobile ([#305](https://github.com/amplitude/Amplitude-Flutter/issues/305)) ([ff33eab](https://github.com/amplitude/Amplitude-Flutter/commit/ff33eab1d02b768b671dedb9853228dfd392caa0))
+
+# [4.5.0](https://github.com/amplitude/Amplitude-Flutter/compare/v4.4.0...v4.5.0) (2026-04-06)
+
+
+### Bug Fixes
+
+* update kotlin SDK to 1.27 ([#295](https://github.com/amplitude/Amplitude-Flutter/issues/295)) ([93abc29](https://github.com/amplitude/Amplitude-Flutter/commit/93abc29f8a5e072ed028767a191458805b66fb52))
+
+
+### Features
+
+* add setOptOut support for iOS and Android ([#294](https://github.com/amplitude/Amplitude-Flutter/issues/294)) ([17ba516](https://github.com/amplitude/Amplitude-Flutter/commit/17ba516cd8071120322705121f47291328c569e9))
+
+# [4.4.0](https://github.com/amplitude/Amplitude-Flutter/compare/v4.3.11...v4.4.0) (2026-03-31)
+
+
+### Features
+
+* **internal:** improvements to support other Amplitude Flutter SDKs ([#291](https://github.com/amplitude/Amplitude-Flutter/issues/291)) ([0652f47](https://github.com/amplitude/Amplitude-Flutter/commit/0652f47fd5780b00407118b8be2a95c57f2c7108))
+
 ## [4.3.11](https://github.com/amplitude/Amplitude-Flutter/compare/v4.3.10...v4.3.11) (2026-02-24)
 
 

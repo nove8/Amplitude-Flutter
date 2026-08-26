@@ -7,10 +7,26 @@ import FlutterMacOS
 
 import AmplitudeSwift
 
+internal var pluginInstance: SwiftAmplitudeFlutterPlugin?
+
 @objc public class SwiftAmplitudeFlutterPlugin: NSObject, FlutterPlugin {
     var instances: [String: Amplitude] = [:]
     public static var plugin: UniversalPlugin?
     static let methodChannelName = "amplitude_flutter"
+
+    /// Returns an Amplitude instance by its instance name.
+    /// This method is intended to be used by other Amplitude SDKs to be able to
+    /// access the underlying Amplitude instance from a native context.
+    ///
+    /// - parameter id: The instance name of the Amplitude instance.
+    /// - returns: The Amplitude instance or `nil` if not found.
+    @_spi(AmplitudeFlutterPlugin) public static func getAmplitudeInstanceById(_ id: String) -> Amplitude? {
+      guard let pluginInstance = pluginInstance else {
+          return nil
+      }
+
+      return pluginInstance.instances[id]
+    }
 
     public static func register(with registrar: FlutterPluginRegistrar) {
         #if os(iOS)
@@ -21,6 +37,11 @@ import AmplitudeSwift
         let channel = FlutterMethodChannel(name: methodChannelName, binaryMessenger: messenger)
         let instance = SwiftAmplitudeFlutterPlugin()
         registrar.addMethodCallDelegate(instance, channel: channel)
+        pluginInstance = instance
+    }
+
+    public func detachFromEngine(for registrar: FlutterPluginRegistrar) {
+        pluginInstance = nil
     }
 
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -132,6 +153,21 @@ import AmplitudeSwift
 
             result(sessionId)
 
+        case "setOptOut":
+            guard let args = arguments?["properties"] as? [String: Any] else {
+                print("\(call.method) called but call.arguments type casting failed.")
+                return
+            }
+            if let enabled = args["setOptOut"] as? Bool {
+                amplitude?.optOut = enabled
+                amplitude?.logger?.debug(message: "Set optOut to \(enabled)")
+            } else {
+                amplitude?.logger?.warn(message: "setOptOut type casting to Bool failed.")
+                return
+            }
+
+            result("setOptOut called..")
+
         case "reset":
             amplitude?.reset()
             amplitude?.logger?.debug(message: "Reset userId and deviceId.")
@@ -159,9 +195,30 @@ import AmplitudeSwift
         let instanceName = args["instanceName"] as? String ?? Constants.Configuration.DEFAULT_INSTANCE
         let migrateLegacyData = args["migrateLegacyData"] as? Bool ?? true
 
+        // The Dart Configuration constructor resolves the effective autocapture
+        // value: a map for AutocaptureOptions/AutocaptureEnabled (derived from
+        // defaultTracking when not set explicitly), or `false` for
+        // AutocaptureDisabled. Translate either shape into an AutocaptureOptions
+        // option set; if neither is present (e.g. a direct channel caller),
+        // fall back to the native SDK defaults.
+        let autocaptureOptions: AutocaptureOptions = {
+            switch args["autocapture"] {
+            case let disabled as Bool where disabled == false:
+                return []
+            case let map as [String: Any]:
+                var opts: AutocaptureOptions = []
+                if (map["sessions"] as? Bool) == true { opts.insert(.sessions) }
+                if (map["appLifecycles"] as? Bool) == true { opts.insert(.appLifecycles) }
+                return opts
+            default:
+                return Configuration.Defaults.autocaptureOptions
+            }
+        }()
+
         let configuration = Configuration(
             apiKey: apiKey,
             instanceName: instanceName,
+            autocapture: autocaptureOptions,
             migrateLegacyData: migrateLegacyData)
 
         if let flushQueueSize = args["flushQueueSize"] as? Int {
@@ -210,18 +267,6 @@ import AmplitudeSwift
         }
         if let identifyBatchIntervalMillis = args["identifyBatchIntervalMillis"] as? Int {
             configuration.identifyBatchIntervalMillis = identifyBatchIntervalMillis
-        }
-        if let defaultTrackingDict = args["defaultTracking"] as? [String: Bool] {
-            let sessions = defaultTrackingDict["sessions"] ?? true
-            let appLifecycles = defaultTrackingDict["appLifecycles"] ?? false
-            // Set false to disable screenViews on iOS
-            // screenViews is implemented in Flutter
-            let screenViews = false
-            configuration.defaultTracking = DefaultTrackingOptions(
-                sessions: sessions,
-                appLifecycles: appLifecycles,
-                screenViews: screenViews
-            )
         }
 
         return configuration

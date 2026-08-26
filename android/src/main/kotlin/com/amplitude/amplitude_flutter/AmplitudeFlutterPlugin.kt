@@ -2,9 +2,13 @@ package com.amplitude.amplitude_flutter
 
 import android.app.Activity
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
+import androidx.annotation.RestrictTo
 import com.amplitude.android.Amplitude
+import com.amplitude.android.AutocaptureOption
 import com.amplitude.android.Configuration
-import com.amplitude.android.DefaultTrackingOptions
+import com.amplitude.android.ConfigurationBuilder
 import com.amplitude.android.TrackingOptions
 import com.amplitude.android.events.IngestionMetadata
 import com.amplitude.android.events.Plan
@@ -22,6 +26,10 @@ import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import java.lang.ref.WeakReference
 import com.amplitude.android.plugins.SessionReplayPlugin
 
+// Global variable to store the plugin instance for the duration of the app's lifecycle
+// This is used to access the plugin instance from a native context in other Amplitude SDKs.
+private var pluginInstance: AmplitudeFlutterPlugin? = null
+
 class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     private var instances: Map<String, Amplitude> = mutableMapOf()
     private var activity: WeakReference<Activity?> = WeakReference(null)
@@ -30,8 +38,24 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
     private lateinit var channel: MethodChannel
 
+    private val mainHandler = Handler(Looper.getMainLooper())
+
     companion object {
         private const val methodChannelName = "amplitude_flutter"
+
+        /**
+         * Returns an Amplitude instance by its instance name.
+         * This method is intended to be used by other Amplitude SDKs to be able to
+         * access the underlying Amplitude instance from a native context.
+         *
+         * @param id The instance name of the Amplitude instance.
+         * @return The Amplitude instance or null if not found.
+         */
+        @RestrictTo(RestrictTo.Scope.LIBRARY_GROUP_PREFIX)
+        @JvmStatic
+        fun getAmplitudeInstanceById(id: String): Amplitude? {
+            return pluginInstance?.instances?.get(id)
+        }
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -54,10 +78,12 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
         ctxt = binding.applicationContext
         channel = MethodChannel(binding.binaryMessenger, methodChannelName)
         channel.setMethodCallHandler(this)
+        pluginInstance = this
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         channel.setMethodCallHandler(null)
+        pluginInstance = null
     }
 
     override fun onMethodCall(call: MethodCall, result: Result) {
@@ -86,8 +112,8 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
 
             trackAppLifecycleAndDeepLinkEvents(
                 amplitude,
-                configuration.defaultTracking.appLifecycles,
-                configuration.defaultTracking.deepLinks
+                AutocaptureOption.APP_LIFECYCLES in configuration.autocapture,
+                AutocaptureOption.DEEP_LINKS in configuration.autocapture
             )
 
             result.success("init called..")
@@ -122,10 +148,23 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
 
             "getDeviceId" -> {
-                val deviceId = amplitude.getDeviceId()
-                amplitude.logger.debug("Get deviceId: $deviceId")
-
-                result.success(deviceId)
+                // The native SDK assigns the device ID on a background coroutine
+                // (amplitude.isBuilt). Reading getDeviceId() before that completes
+                // returns null, so wait for the build to finish before replying.
+                // getDeviceId() is nullable by contract, so a failed build resolves
+                // to null rather than surfacing a PlatformException to Dart callers.
+                amplitude.isBuilt.invokeOnCompletion { exception ->
+                    mainHandler.post {
+                        if (exception != null) {
+                            amplitude.logger.warn("getDeviceId: Amplitude build did not complete: ${exception.message}")
+                            result.success(null)
+                        } else {
+                            val deviceId = amplitude.getDeviceId()
+                            amplitude.logger.debug("Get deviceId: $deviceId")
+                            result.success(deviceId)
+                        }
+                    }
+                }
             }
 
             "setDeviceId" -> {
@@ -137,10 +176,37 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
             }
 
             "getSessionId" -> {
-                val sessionId = amplitude.sessionId
-                amplitude.logger.debug("Get sessionId: $sessionId")
+                // Like the device ID, the session ID is restored from storage on
+                // the native build coroutine (amplitude.isBuilt): before it
+                // completes, amplitude.sessionId returns the -1 sentinel. Wait for
+                // the build so callers get the restored session ID rather than -1.
+                // (On a brand-new install the value may still be -1 until the first
+                // session starts, which is expected.)
+                amplitude.isBuilt.invokeOnCompletion { exception ->
+                    mainHandler.post {
+                        if (exception != null) {
+                            amplitude.logger.warn("getSessionId: Amplitude build did not complete: ${exception.message}")
+                            result.success(null)
+                        } else {
+                            val sessionId = amplitude.sessionId
+                            amplitude.logger.debug("Get sessionId: $sessionId")
+                            result.success(sessionId)
+                        }
+                    }
+                }
+            }
 
-                result.success(sessionId)
+            "setOptOut" -> {
+                val enabled = call.argument<Map<String, Boolean>>("properties")?.get("setOptOut")
+                if (enabled != null) {
+                    amplitude.optOut = enabled
+                    amplitude.logger.debug("Set optOut to $enabled")
+                } else {
+                    amplitude.logger.warn("setOptOut type casting to Bool failed.")
+                    return
+                }
+
+                result.success("setOptOut called..")
             }
 
             "reset" -> {
@@ -191,45 +257,49 @@ class AmplitudeFlutterPlugin : FlutterPlugin, MethodCallHandler, ActivityAware {
     }
 
     private fun getConfiguration(call: MethodCall): Configuration {
-        val configuration = Configuration(call.argument<String>("apiKey")!!, context = ctxt)
-        call.argument<Int>("flushQueueSize")?.let { configuration.flushQueueSize = it }
-        call.argument<Int>("flushIntervalMillis")?.let { configuration.flushIntervalMillis = it }
-        call.argument<String>("instanceName")?.let { configuration.instanceName = it }
-        call.argument<Boolean>("optOut")?.let { configuration.optOut = it }
-        call.argument<Int>("minIdLength")?.let { configuration.minIdLength = it }
-        call.argument<String>("partnerId")?.let { configuration.partnerId = it }
-        call.argument<Int>("flushMaxRetries")?.let { configuration.flushMaxRetries = it }
-        call.argument<Boolean>("useBatch")?.let { configuration.useBatch = it }
+        val builder = ConfigurationBuilder(call.argument<String>("apiKey")!!, context = ctxt)
+        call.argument<Int>("flushQueueSize")?.let { builder.flushQueueSize = it }
+        call.argument<Int>("flushIntervalMillis")?.let { builder.flushIntervalMillis = it }
+        call.argument<String>("instanceName")?.let { builder.instanceName = it }
+        call.argument<Boolean>("optOut")?.let { builder.optOut = it }
+        call.argument<Int>("minIdLength")?.let { builder.minIdLength = it }
+        call.argument<String>("partnerId")?.let { builder.partnerId = it }
+        call.argument<Int>("flushMaxRetries")?.let { builder.flushMaxRetries = it }
+        call.argument<Boolean>("useBatch")?.let { builder.useBatch = it }
         call.argument<String>("serverZone")
-            ?.let { configuration.serverZone = com.amplitude.core.ServerZone.valueOf(it.uppercase()) }
-        call.argument<String>("serverUrl")?.let { configuration.serverUrl = it }
+            ?.let { builder.serverZone = com.amplitude.core.ServerZone.valueOf(it.uppercase()) }
+        call.argument<String>("serverUrl")?.let { builder.serverUrl = it }
         call.argument<Int>("minTimeBetweenSessionsMillis")
-            ?.let { configuration.minTimeBetweenSessionsMillis = it.toLong() }
-        call.argument<Map<String, Any>>("defaultTracking")?.let { map ->
-            configuration.defaultTracking = DefaultTrackingOptions(
-                sessions = (map["sessions"] as? Boolean) ?: true,
-                appLifecycles = (map["appLifecycles"] as? Boolean) ?: false,
-                deepLinks = (map["deepLinks"] as? Boolean) ?: false,
-                // Set false to disable screenViews on Android
-                // screenViews is implemented in Flutter
-                screenViews = false
-            )
+            ?.let { builder.minTimeBetweenSessionsMillis = it.toLong() }
+        // The Dart Configuration constructor resolves the effective autocapture
+        // value: a map for AutocaptureOptions/AutocaptureEnabled (derived from
+        // defaultTracking when not set explicitly), or `false` for
+        // AutocaptureDisabled. Translate either shape into an AutocaptureOption
+        // set; if neither is present (e.g. a direct channel caller), leave the
+        // native SDK defaults in place.
+        when (val autocaptureArg = call.argument<Any>("autocapture")) {
+            false -> builder.autocapture = emptySet()
+            is Map<*, *> -> builder.autocapture = buildSet {
+                if (autocaptureArg["sessions"] == true) add(AutocaptureOption.SESSIONS)
+                if (autocaptureArg["appLifecycles"] == true) add(AutocaptureOption.APP_LIFECYCLES)
+                if (autocaptureArg["deepLinks"] == true) add(AutocaptureOption.DEEP_LINKS)
+            }
         }
         call.argument<Map<String, Any>>("trackingOptions")?.let { map ->
-            configuration.trackingOptions = convertMapToTrackingOptions(map)
+            builder.trackingOptions = convertMapToTrackingOptions(map)
         }
-        call.argument<Boolean>("enableCoppaControl")?.let { configuration.enableCoppaControl = it }
-        call.argument<Boolean>("flushEventsOnClose")?.let { configuration.flushEventsOnClose = it }
+        call.argument<Boolean>("enableCoppaControl")?.let { builder.enableCoppaControl = it }
+        call.argument<Boolean>("flushEventsOnClose")?.let { builder.flushEventsOnClose = it }
         call.argument<Int>("identifyBatchIntervalMillis")
-            ?.let { configuration.identifyBatchIntervalMillis = it.toLong() }
-        call.argument<Boolean>("migrateLegacyData")?.let { configuration.migrateLegacyData = it }
-        call.argument<Boolean>("locationListening")?.let { configuration.locationListening = it }
+            ?.let { builder.identifyBatchIntervalMillis = it.toLong() }
+        call.argument<Boolean>("migrateLegacyData")?.let { builder.migrateLegacyData = it }
+        call.argument<Boolean>("locationListening")?.let { builder.locationListening = it }
         call.argument<Boolean>("useAdvertisingIdForDeviceId")
-            ?.let { configuration.useAdvertisingIdForDeviceId = it }
-        call.argument<Boolean>("useAppSetIdForDeviceId")?.let { configuration.useAppSetIdForDeviceId = it }
-        call.argument<String>("deviceId")?.let { configuration.deviceId = it }
+            ?.let { builder.useAdvertisingIdForDeviceId = it }
+        call.argument<Boolean>("useAppSetIdForDeviceId")?.let { builder.useAppSetIdForDeviceId = it }
+        call.argument<String>("deviceId")?.let { builder.deviceId = it }
 
-        return configuration
+        return builder.build()
     }
 
     private fun convertMapToTrackingOptions(map: Map<String, Any>): TrackingOptions {

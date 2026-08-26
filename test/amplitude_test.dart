@@ -50,8 +50,8 @@ void main() {
       'deepLinks': false,
       'attribution': true,
       'pageViews': true,
-      'formInteractions': true,
-      'fileDownloads': true,
+      'formInteractions': false,
+      'fileDownloads': false,
     },
     'trackingOptions': {
       'ipAddress': true,
@@ -101,7 +101,14 @@ void main() {
         'initialEmptyValue': 'EMPTY',
         'resetSessionOnNewCampaign': false
       },
-      'pageViews': {'trackHistoryChanges': 'all', 'eventType': ''}
+      'pageViews': false,
+      'appLifecycles': false,
+      'deepLinks': false,
+      'screenViews': false,
+      'formInteractions': false,
+      'fileDownloads': false,
+      'elementInteractions': false,
+      'pageUrlEnrichment': false,
     },
     // This field doesn't belong to Configuration
     // Pass it for FlutterLibraryPlugin
